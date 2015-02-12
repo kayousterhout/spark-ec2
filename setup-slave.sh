@@ -52,7 +52,7 @@ EXT4_MOUNT_OPTS="defaults,noatime,nodiratime"
 yum install -y xfsprogs
 for mnt in `mount | grep mnt | cut -d " " -f 3`; do
   device=$(df /$mnt | tail -n 1 | awk '{ print $1; }')
-  empty=$(ls /$mnt | grep -v lost+found) 
+  empty=$(ls /$mnt | grep -v lost+found)
   if [[ "$empty" == "" ]]; then
     umount /$mnt
     mkfs.ext4 -E lazy_itable_init=0,lazy_journal_init=0 $device
