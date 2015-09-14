@@ -18,7 +18,7 @@ then
   git remote add origin $repo
   git fetch origin
   git checkout $git_hash_or_branch || git checkout origin/$git_hash_or_branch
-  build/mvn package -DskipTests -Phive -Phive-thriftserver -Dhadoop.version=2.0.0-mr1-cdh4.2.0
+  build/mvn package -DskipTests -Phive -Phive-thriftserver -Dhadoop.version=2.0.0-cdh4.2.0
   # If using Spark to build other projects, need to do mvn install here as well!  We don't do it now
   # to increase the speed of cluster setup.
   popd
