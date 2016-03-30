@@ -21,12 +21,15 @@ HOSTNAME=$PRIVATE_DNS  # Fix the bash built-in hostname variable too
 
 echo "Setting up slave on `hostname`..."
 
-# Work around for R3 instances without pre-formatted ext3 disks
+# Mount options to use for ext3 and xfs disks (the ephemeral disks
+# are ext3, but we use xfs for EBS volumes to format them faster)
+XFS_MOUNT_OPTS="defaults,noatime,nodiratime,allocsize=8m"
+# ext4 has the best performance among ext3, ext4, and xfs based on our shuffle heavy benchmark
+EXT4_MOUNT_OPTS="defaults,noatime,nodiratime"
+
 instance_type=$(curl http://169.254.169.254/latest/meta-data/instance-type 2> /dev/null)
-if [[ $instance_type == r3* ]]; then
-  # Format & mount using ext4, which has the best performance among ext3, ext4, and xfs based
-  # on our shuffle heavy benchmark
-  EXT4_MOUNT_OPTS="defaults,noatime,nodiratime"
+if [[ $instance_type == r3* || $instance_type == i2* ]]; then
+  # Work around for R3 and I2 instances without pre-formatted and pre-mounted ext3 disks.
   rm -rf /mnt*
   mkdir /mnt
   # To turn TRIM support on, uncomment the following line.
@@ -34,33 +37,28 @@ if [[ $instance_type == r3* ]]; then
   mkfs.ext4 -F -E lazy_itable_init=0,lazy_journal_init=0 /dev/sdb
   mount -o $EXT4_MOUNT_OPTS /dev/sdb /mnt
 
-  if [[ $instance_type == "r3.8xlarge" ]]; then
+  if [[ $instance_type == "r3.8xlarge" || $instance_type == "i2.2xlarge" ]]; then
     mkdir /mnt2
     # To turn TRIM support on, uncomment the following line.
     #echo '/dev/sdc /mnt2  ext4  defaults,noatime,nodiratime,discard 0 0' >> /etc/fstab
     mkfs.ext4 -F -E lazy_itable_init=0,lazy_journal_init=0 /dev/sdc
     mount -o $EXT4_MOUNT_OPTS /dev/sdc /mnt2
   fi
+else
+  # For instance types where the storage volumes are already formatted and mounted, reformat them as
+  # ext4.
+  yum install -y xfsprogs
+  for mnt in `mount | grep mnt | cut -d " " -f 3`; do
+    device=$(df /$mnt | tail -n 1 | awk '{ print $1; }')
+    empty=$(ls /$mnt | grep -v lost+found)
+    if [[ "$empty" == "" ]]; then
+      umount /$mnt
+      mkfs.ext4 -F -E lazy_itable_init=0,lazy_journal_init=0 $device
+      mount -o $EXT4_MOUNT_OPTS $device /$mnt
+      echo "$device /$mnt auto $EXT4_MOUNT_OPTS 0 0" >> /etc/fstab
+    fi
+  done
 fi
-
-# Mount options to use for ext3 and xfs disks (the ephemeral disks
-# are ext3, but we use xfs for EBS volumes to format them faster)
-XFS_MOUNT_OPTS="defaults,noatime,nodiratime,allocsize=8m"
-EXT4_MOUNT_OPTS="defaults,noatime,nodiratime"
-
-# Reformat existing mount points as ext4
-yum install -y xfsprogs
-for mnt in `mount | grep mnt | cut -d " " -f 3`; do
-  device=$(df /$mnt | tail -n 1 | awk '{ print $1; }')
-  empty=$(ls /$mnt | grep -v lost+found)
-  if [[ "$empty" == "" ]]; then
-    umount /$mnt
-    mkfs.ext4 -F -E lazy_itable_init=0,lazy_journal_init=0 $device
-    mount -o $EXT4_MOUNT_OPTS $device /$mnt
-    echo "$device /$mnt auto $EXT4_MOUNT_OPTS 0 0" >> /etc/fstab
-  fi
-done
-
 
 function setup_ebs_volume {
   device=$1
