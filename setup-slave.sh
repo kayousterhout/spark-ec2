@@ -21,15 +21,14 @@ HOSTNAME=$PRIVATE_DNS  # Fix the bash built-in hostname variable too
 
 echo "Setting up slave on `hostname`..."
 
-# Mount options to use for ext3 and xfs disks (the ephemeral disks
-# are ext3, but we use xfs for EBS volumes to format them faster)
+# Mount options to use for xfs disks (we use xfs for EBS volumes to format them faster).
 XFS_MOUNT_OPTS="defaults,noatime,nodiratime,allocsize=8m"
 # ext4 has the best performance among ext3, ext4, and xfs based on our shuffle heavy benchmark
 EXT4_MOUNT_OPTS="defaults,noatime,nodiratime"
 
 instance_type=$(curl http://169.254.169.254/latest/meta-data/instance-type 2> /dev/null)
 if [[ $instance_type == r3* || $instance_type == i2* ]]; then
-  # Work around for R3 and I2 instances without pre-formatted and pre-mounted ext3 disks.
+  # Handle instances with disks that are not already formatted and mounted.
   rm -rf /mnt*
   mkdir /mnt
   # To turn TRIM support on, uncomment the following line.
