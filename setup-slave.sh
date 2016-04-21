@@ -114,7 +114,10 @@ rm -f /root/.ssh/known_hosts
 /root/spark-ec2/create-swap.sh $SWAP_MB
 
 # Allow memory to be over committed. Helps in pyspark where we fork
-echo 1 > /proc/sys/vm/overcommit_memory
+# Don't do this in monotasks! It may be leading to OOM issues.
+# We might even want to more aggressively override this to *never*
+# overcommit memory (the default automatically determines when to overcommit).
+#echo 1 > /proc/sys/vm/overcommit_memory
 
 # Add github to known hosts to get git@github.com clone to work
 # TODO(shivaram): Avoid duplicate entries ?
